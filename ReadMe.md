@@ -1,49 +1,92 @@
-# Atividade Banco
+# Atividade: Carteira Digital (JUnit 5)
 
-## Objetivo:
+## Objetivo
 
-Neste exercício, você irá testar funcionalidades de uma classe de gerenciamento de contas bancárias utilizando JUnit5. Seu foco será verificar operações de depósito, saque e consulta de saldo, garantindo que o comportamento da aplicação esteja correto em diferentes cenários.
+Testar funcionalidades de uma Carteira Digital (e-wallet) usando JUnit 5, cobrindo operações de depósito, pagamento e estorno, além de regras de verificação de conta (KYC) e bloqueio. O foco é exercitar:
 
-Você irá trabalhar com a classe BankAccount, que representa uma conta bancária simples com as seguintes funcionalidades:
+- ```assumeTrue```/```assumeFalse``` (pré-condições contextuais),
+- ```assertThrows``` (erros de regra/entrada),
+- testes parametrizados (```@ParameterizedTest``` com ```@ValueSource```, ```@CsvSource``` e ```@MethodSource```).
 
-- String getAccountHolder(): Retorna o nome do titular da conta.
-- double getBalance(): Retorna o saldo atual da conta.
-- void deposit(double amount): Adiciona um valor positivo ao saldo da conta.
-- boolean withdraw(double amount): Tenta retirar um valor da conta. Retorna true se o saque for bem-sucedido (saldo suficiente), e false se o saldo for insuficiente ou se o valor for inválido (negativo).
+## Classe sob teste: DigitalWallet
 
-## Requisitos:
+A classe representa uma carteira digital simples.
 
-Você deve criar testes unitários para validar os seguintes comportamentos da classe BankAccount utilizando JUnit5 e apenas os métodos de asserção assertEquals, assertTrue, e assertFalse.
+### API esperada
+```java
+public class DigitalWallet {
+    public DigitalWallet(String owner, double initialBalance) { ... }
 
-## Cenários para Teste:
+    public String getOwner();                 // nome do titular
+    public double getBalance();               // saldo atual
+    public boolean isVerified();              // KYC concluído?
+    public boolean isLocked();                // carteira bloqueada?
+    public void verify();                     // marca como verificada
+    public void lock();                       // bloqueia carteira
+    public void unlock();                     // desbloqueia carteira
 
-### Saldo Inicial:
+    public void deposit(double amount);       // adiciona ao saldo (valor > 0)
+    public boolean pay(double amount);        // debita se verificada, não bloqueada, valor > 0 e saldo suficiente
+    public void refund(double amount);        // estorna (valor > 0), exige verificada e não bloqueada
+}
 
-Verifique se, ao criar uma nova conta bancária, o saldo inicial é configurado corretamente.
+```
+## Regras
 
-**Exemplo**: Para uma conta criada com saldo inicial de 1000.00, o método getBalance() deve retornar 1000.00.
+1. Saldo inicial deve ser ≥ 0. Saldo negativo no construtor deve lançar ```IllegalArgumentException```.
 
-### Depósito:
+2. Depósito: apenas ```amount > 0```. Caso contrário, lançar ```IllegalArgumentException```.
 
-Teste se o saldo da conta é atualizado corretamente após um depósito válido.
+3. Pagamento (pay):
 
-**Exemplo**: Deposite 500.00 em uma conta com saldo inicial de 1000.00 e verifique se o novo saldo é 1500.00.
+    - Requer carteira verificada e não bloqueada.
+    - ```amount > 0```.
+    - Retorna true se houver saldo suficiente e debita; false se saldo insuficiente.
 
-**Caso inválido**: O método deposit não deve alterar o saldo caso o valor depositado seja negativo (exemplo: -100.00).
+4. Estorno (refund):
 
-### Saque Bem-Sucedido:
+    - Requer carteira verificada e não bloqueada.
+    - ```amount > 0```. Caso contrário, lançar ```IllegalArgumentException```.
 
-Verifique se o saque é realizado com sucesso quando há saldo suficiente.
+### Requisitos de Teste (o que implementar)
+1) Saldo Inicial (básico)
 
-**Exemplo**: Sacar 400.00 de uma conta com saldo de 1000.00 deve ser permitido e o saldo final deve ser 600.00. O método withdraw deve retornar true.
+    - Verifique que o saldo inicial é configurado corretamente.
+    - Caso de erro: tentar criar carteira com saldo inicial negativo deve lançar ```IllegalArgumentException``` (```assertThrows```).
 
-**Saque Falho por Saldo Insuficiente**:
+2) Depósito
 
-### Teste o caso onde o saldo da conta é insuficiente para um saque.
+    - Atualiza corretamente o saldo para valores válidos (use ```@ParameterizedTest``` com ```@ValueSource(doubles = {...})```).
+    - Depósito com ```0``` ou valor negativo deve lançar ```IllegalArgumentException``` (```assertThrows```).
 
-**Exemplo**: Tentar sacar 1500.00 de uma conta com saldo de 1000.00 deve falhar, e o saldo deve permanecer inalterado. O método withdraw deve retornar false.
-Saque Inválido (Valor Negativo):
+3) Pagamento (pay)
 
-### Teste a falha no saque quando o valor a ser sacado é negativo.
+    - Pré-condição com ```assumeTrue```: assuma que a carteira está verificada e não bloqueada para os testes “felizes”.
+    - Caso feliz: pagamentos válidos debitam saldo e retornam true (use ```@CsvSource``` com pares ```saldoInicial,valorPagamento,resultadoEsperado```).
+    - Saldo insuficiente retorna ```false``` e não altera saldo.
+    - Casos de erro com ```assertThrows```: pagamento com valor ≤ 0 deve lançar exceção.
 
-**Exemplo**: Um saque de -200.00 deve falhar e o saldo da conta deve permanecer inalterado.
+4) Estorno (refund)
+
+    - Use ```assumeTrue``` para exigir carteira verificada e não bloqueada.
+    - Estorno válido (```amount > 0```) aumenta o saldo.
+    - ```assertThrows``` ao estornar 0 ou negativo.
+
+5) Estados da Carteira (verificada/bloqueada)
+
+    - ```assumeFalse``` / ```assumeTrue``` para pular cenários inválidos:
+        - Se a carteira não estiver verificada, ```pay``` e ```refund``` devem lançar ```IllegalStateException```.
+        - Se a carteira estiver bloqueada, ```pay``` e ```refund``` devem lançar ```IllegalStateException```.
+
+### Dicas de Parametrização
+
+- ```@ValueSource(doubles = {10.0, 0.01, 999.99})``` para depósitos válidos.
+- ```@CsvSource({ "100.0, 30.0, true", "50.0, 80.0, false", "10.0, 10.0, true" })``` para pagamentos.
+- ```@MethodSource``` para gerar combinações mais ricas (ex.: múltiplos estornos em sequência).
+
+## Critérios de Avaliação
+
+- Uso correto de ```assumeTrue```/```assumeFalse``` para pré-condições (verificada/não bloqueada).
+- Uso de ```assertThrows``` para entradas inválidas e estados inválidos.
+- Cobertura com Parameterized Tests (```@ValueSource```, ```@CsvSource``` e pelo menos um ```@MethodSource```).
+- Clareza na organização e nomes descritivos.
