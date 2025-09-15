@@ -9,12 +9,18 @@ import com.example.DigitalWallet;
 
 class Deposito {
         
-        void deveDepositarValoresValidos(double amount) {
-            
-        }
-
-        
-        void deveLancarExcecaoParaDepositoInvalido(double amount) {
-            
-        }
+    @ParameterizedTest
+    @ValueSource(doubles = {10.0, 0.01, 999.99})
+    void deveDepositarValoresValidos(double amount) {
+        DigitalWallet wallet = new DigitalWallet("teste", 0.0);
+        wallet.deposit(amount);
+        assertEquals(amount, wallet.getBalance());
     }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {0.0, -1.0, -50.0})
+    void deveLancarExcecaoParaDepositoInvalido(double amount) {
+        DigitalWallet wallet = new DigitalWallet("teste", 100.0);
+        assertThrows(IllegalArgumentException.class, () -> wallet.deposit(amount));
+    }
+}
